@@ -1,0 +1,1405 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<script  src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+<script language="javascript">
+	/*-------------------------------------------------------------------------------------------------------------------------------*/
+	/*													INTERACTIVE DRUM SET 														 */
+	/*							  Authors: Denae Douglas, Stephen Fulton, Brock Sauvage, Alec Knutsen								 */
+	/*							  Date: May 11, 2016								 
+	/*							  Sounds Sampled from: 99Sounds & Jazz Funk Kit*/
+	/*-------------------------------------------------------------------------------------------------------------------------------*/
+
+	//drumSet stores the IDs of each drum set piece image
+	var drumSet = ['#crash', '#snare', '#toms', '#toms2','#hihat','#bass','#ride'];
+	//ogVals is an array of arrays which follow the order [width of element, height of element, left margin, top margin]
+	var ogVals = [[170,150,342,520],[150,110,419,710],[170,170,617,580],[170,170,837,690],[130,90,285,690],[390,380,510,625],[200,170,891,450]]
+	//growSize is the width to which each element will increase (index is same as ogVals index--that is, element 0 of ogVals will grow to width 220 (element 0 of growSize))
+	var growSize = [220,200,220,220,180,440,250]
+	//shrinkSize are the original widths to which each element will shrink down to
+	var shrinkSize = [170,150,170,170,130,390,200]
+	//these are the values by which the width and height increase/decrease and the left and top margins change to compensate for the increasing/decreasing image size
+	var animateVals = [[10,11,6,5],[10,14,7,5],[10,10,5,5],[10,10,5,5],[10,14,7,5],[10,11,6,5],[10,12,6,5]]
+	var sound_array = []
+	var recording = false
+	var set = 1
+	var refreshIntervalId = 0
+	//arrays that keep track of when an element should be growing/shrinking
+	var playAnimate = [false,false,false,false,false,false,false]
+	var playShrink = [false,false,false,false,false,false,false]
+	//stores all animation setIntervals for each image on page
+	var g = [];
+	
+	//For creating and storing time
+	var d;
+	var end_time;
+	var start_time;
+	
+	//Stores time between audio sounds 
+	var time_array = [];
+
+
+	$('document').ready(function(){
+		//this checks for key releases, and checks whether the released key is one that corresponds to a drum set piece
+		$(document).bind('keyup', function(e){
+			//each of these if statements checks for a different key ID
+			if(e.which==97) {
+				handleAnimations(4);
+				playHiHat();
+			}
+			if(e.which==103) {
+				handleAnimations(0);
+				playCrash();
+			}
+			if(e.which==100) {
+				handleAnimations(1);
+				playSnare();
+			}
+			if(e.which==104) {
+				handleAnimations(2);
+				playToms();
+			}
+			if(e.which==101) {
+				handleAnimations(5);
+				playBass();
+			}
+			if(e.which==102) {
+				handleAnimations(3);
+				playBigToms();
+			}
+			if(e.which==105) {
+				handleAnimations(6);
+				playRide();
+			}
+		});
+		//loadAnimations loads in all of the setIntervals for growing/shrinking the images
+		loadAnimations();
+
+		$('#play').click(function(){
+			playSound(0);
+		})
+		//each of these click functions is for each respective image based on the IDs stored in drumSet
+		//handleAnimations takes in the number corresponding to a certain drum set element, and enables the grow intervals and shrink intervals
+		//this plays the sound that corresponds to the specific drum element--in this case, the crash cymbal.
+		$(drumSet[0]).click(function(){
+			handleAnimations(0);
+			playCrash();
+		});
+		$(drumSet[1]).click(function(){
+			handleAnimations(1);
+			playSnare();
+		});
+		$(drumSet[4]).click(function(){
+			handleAnimations(4);
+			playHiHat();
+		});
+		$(drumSet[2]).click(function(){
+			handleAnimations(2);
+			playToms();
+		});
+		$(drumSet[3]).click(function(){
+			handleAnimations(3);
+			playBigToms();
+		});
+		$(drumSet[5]).click(function(){
+			handleAnimations(5);
+			playBass();
+		});
+		$(drumSet[6]).click(function(){
+			handleAnimations(6);
+			playRide();
+		});
+
+	})
+
+	//switch sets changes audio element sources to those used for the opposite drum set
+	function switchSets(){
+		sound_array = [];
+		//changes to set 2 if set 1, 1 if set 2
+		if(set == 1){
+			document.getElementById("audio1").src = "FinalProjectSounds/DrumSet2/crash808.ogg"
+			document.getElementById("audio2").src = "FinalProjectSounds/DrumSet2/snare808.ogg"
+			document.getElementById("audio3").src = "FinalProjectSounds/DrumSet2/hihat808.ogg"
+			document.getElementById("audio4").src = "FinalProjectSounds/DrumSet2/tom808Hi.ogg"
+			document.getElementById("audio5").src = "FinalProjectSounds/DrumSet2/tom808Lo.ogg"
+			document.getElementById("audio6").src = "FinalProjectSounds/DrumSet2/kick808.ogg"
+			document.getElementById("audio7").src = "FinalProjectSounds/DrumSet2/cowbell808.ogg"
+			set = 2
+		}
+		else if(set == 2){
+			document.getElementById("audio1").src = "FinalProjectSounds/DrumSet1/crashReal.ogg"
+			document.getElementById("audio2").src = "FinalProjectSounds/DrumSet1/snareReal.ogg"
+			document.getElementById("audio3").src = "FinalProjectSounds/DrumSet1/hihatReal.ogg"
+			document.getElementById("audio4").src = "FinalProjectSounds/DrumSet1/hiTomReal.ogg"
+			document.getElementById("audio5").src = "FinalProjectSounds/DrumSet1/floorTomReal2.ogg"
+			document.getElementById("audio6").src = "FinalProjectSounds/DrumSet1/kick_AcousticReal.ogg"
+			document.getElementById("audio7").src = "FinalProjectSounds/DrumSet1/rideReal.ogg"
+			set = 1
+		}
+
+	}
+
+	//handleAnimations takes in a number corresponding to specific drum elements
+	function handleAnimations(dSet){
+		//changes width, height, margin-left, and margin-top to their original values, then sets the correct booleean in playAnimate to false so that the animations will run
+		$(drumSet[dSet]).css("width", ogVals[dSet][0]);
+		$(drumSet[dSet]).css("height", ogVals[dSet][1]);
+		$(drumSet[dSet]).css("margin-left", ogVals[dSet][2]);
+		$(drumSet[dSet]).css("margin-top", ogVals[dSet][3]);
+		playAnimate[dSet] = true
+	}
+	//loadAnimations stores all setIntervals for the growing and shrinking of each image on page
+	function loadAnimations(){
+		g.push(setInterval(function(){grow(0)},15))
+		g.push(setInterval(function(){shrink(0)},15))
+		g.push(setInterval(function(){grow(1)},15))
+		g.push(setInterval(function(){shrink(1)},15))
+		g.push(setInterval(function(){grow(4)},15))
+		g.push(setInterval(function(){shrink(4)},15))
+		g.push(setInterval(function(){grow(2)},15))
+		g.push(setInterval(function(){shrink(2)},15))
+		g.push(setInterval(function(){grow(3)},15))
+		g.push(setInterval(function(){shrink(3)},15))
+		g.push(setInterval(function(){shrink(5)},15))
+		g.push(setInterval(function(){grow(5)},15))
+		g.push(setInterval(function(){grow(6)},15))
+		g.push(setInterval(function(){shrink(6)},15))
+	}
+	//grow takes an index, checks if that index in playAnimate is true
+	//If true, then take the height, width, margin-left, and margin-top and increase/decrease them accordingly
+	//Then sets the image to those new values, and checks if the image has reached its minimum/maximum size
+	//If the image has reached maximum size, then it sets playAnimate at index to false (stopping growth) and sets playShrink at index to true (starting shrink)
+	function grow(dSet){
+		if(playAnimate[dSet]){
+			var h = $(drumSet[dSet]).css("height");
+			var w = $(drumSet[dSet]).css("width");
+			var ml = $(drumSet[dSet]).css("marginLeft");
+			var mt = $(drumSet[dSet]).css("marginTop");
+			h = parseInt(h);
+			w = parseInt(w);
+			ml = parseInt(ml);
+			mt = parseInt(mt);
+			h = h + animateVals[dSet][0];
+			w = w + animateVals[dSet][1];
+			ml = ml- animateVals[dSet][2];
+			mt = mt- animateVals[dSet][3];
+			$(drumSet[dSet]).css("width", w + "px");
+			$(drumSet[dSet]).css("height", h + "px");
+			$(drumSet[dSet]).css("marginLeft", ml+"px");
+			$(drumSet[dSet]).css("marginTop", mt+"px");
+			if(w >= growSize[dSet]){
+				playAnimate[dSet] = false;
+				playShrink[dSet] = true;
+			}
+		}
+	}
+	//shrink takes an index, checks if that index in playShrink is true
+	//If true, then take the height, width, margin-left, and margin-top and increase/decrease them accordingly
+	//Then sets the image to those new values, and checks if the image has reached its minimum/maximum size
+	//If the image has reached minimum size, then it resets the image to its normal size/location and sets playShrink at index to false, stopping animation
+	function shrink(dSet){
+		if(playShrink[dSet]){
+			var h = $(drumSet[dSet]).css("height");
+			var w = $(drumSet[dSet]).css("width");
+			var ml = $(drumSet[dSet]).css("marginLeft");
+			var mt = $(drumSet[dSet]).css("marginTop");
+			h = parseInt(h);
+			w = parseInt(w);
+			ml = parseInt(ml);
+			mt = parseInt(mt);
+			h = h - animateVals[dSet][0];
+			w = w - animateVals[dSet][1];
+			ml = ml+animateVals[dSet][2];
+			mt = mt+animateVals[dSet][3];
+			$(drumSet[dSet]).css("width", w+"px");
+			$(drumSet[dSet]).css("height", h+"px");
+			$(drumSet[dSet]).css("marginLeft", ml+"px");
+			$(drumSet[dSet]).css("marginTop", mt+"px");
+			if(w <= shrinkSize[dSet]){
+				$(drumSet[dSet]).css("width", ogVals[dSet][0]);
+				$(drumSet[dSet]).css("height", ogVals[dSet][1]);
+				$(drumSet[dSet]).css("margin-left", ogVals[dSet][2]);
+				$(drumSet[dSet]).css("margin-top", ogVals[dSet][3]);
+				playShrink[dSet] = false;
+			}
+		}
+	}
+	
+	
+	//Play crash sound
+	function playCrash() {
+	
+		//Get audio 
+		var audio = document.getElementById('audio1');
+		//If the audio was paused before
+		if (audio.paused) {
+		
+			//Play the sound
+			audio.play();
+			
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(0);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(0);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+
+
+		}
+		
+		//If the audio is playing
+		else{
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(0);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(0);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+			//Reset audio time
+			audio.currentTime = 0
+		}
+	}
+	
+	//Functio to play snare sound
+	function playSnare() {
+	
+		//Get audio element
+		var audio2 = document.getElementById('audio2');
+		
+		//If the audio was not currently playing
+		if (audio2.paused) {
+		
+			//Play the sound
+			audio2.play();
+
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(1);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(1);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+
+		}
+		else{
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(1);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(1);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+			
+			//Reset the audio time
+			audio2.currentTime = 0
+		}
+	}
+	
+	//Function to playHiHat sound
+	function playHiHat() {
+	
+		//Get the audio file
+		var audio3 = document.getElementById('audio3');
+		
+		//If the audio was not paused before
+		if (audio3.paused) {
+		
+			//Play the audio
+			audio3.play();
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(2);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(2);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+
+		}
+		
+		//If the audio is playing
+		else{
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(2);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(2);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+			
+			//Reset audio time
+			audio3.currentTime = 0
+		}
+	}
+	
+	//Function play the Toms sound
+	function playToms() {
+	
+		//Get the audio element
+		var audio4 = document.getElementById('audio4');
+		
+		//If the audio is paused
+		if (audio4.paused) {
+
+			//Play the sound
+			audio4.play();
+
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(3);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(3);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+		}
+		
+		//If the audio is not paused
+		else{
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(3);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(3);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+			
+			//Reset the audio time
+			audio4.currentTime = 0
+		}
+	}
+	
+	//Function to play the BigToms sound
+	function playBigToms() {
+	
+		//Get the audio file
+		var audio5 = document.getElementById('audio5');
+		
+		//If the audio is paused
+		if (audio5.paused) {
+
+			//Play the audio
+			audio5.play();
+
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(4);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(4);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+		}
+		
+		//If the audio is already playing
+		else{
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(4);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(4);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+			
+			//Reset the audio time
+			audio5.currentTime = 0
+   		}
+	}
+	
+	//Function to play the bass sound
+	function playBass() {
+	
+		//Get the audio
+		var audio6 = document.getElementById('audio6');
+		
+		//If the audio is paused
+		if (audio6.paused) {
+
+			//PLay the audio
+			audio6.play();
+
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(5);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(5);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+		}
+		
+		//If the audio is already playing
+		else{
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(5);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(5);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+			
+			//Reset the audio time
+			audio6.currentTime = 0
+		}
+	}
+	
+	//Function to play ride sound
+	function playRide() {
+	
+		//Get the sound
+		var audio = document.getElementById('audio7');
+		
+		//If the sound was passed before
+		if (audio.paused) {
+		
+			//Play the sound
+			audio.play();
+
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(6);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(6);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+
+		}
+		
+		else{
+			//If we are recording
+			if(recording) {
+			
+				//If it is the first sound in the recording
+				if(init == true) {
+					
+					//Start the timer
+					d= new Date();
+					start_time = d.getTime();
+					
+					//Push onto the sound array
+					sound_array.push(6);
+					
+					//Set init boolean to false
+					init = false;
+			
+				}
+				
+				//If it is not the first sound in the recording
+				else {
+				
+					//Push the sound onto the sound array
+					sound_array.push(6);
+					
+					//Get the end time
+					d= new Date();
+					end_time = d.getTime();
+
+					//Push the difference in times onto the timing array
+					time_array.push(end_time-start_time);
+					
+					//Get a new start time 
+					d= new Date();
+					start_time = d.getTime();
+				}
+
+			}
+			audio.currentTime = 0
+		}
+	}
+	
+	//Used when the user hits the record button, and has a number of different function
+	function record() {
+
+		//If we were not recording before
+		if(recording == false) {
+			
+			//Change the color of the recording button
+			document.getElementById('rec').style.background = '#FF0000';
+			
+			//Blank out the time and sound array
+			sound_array = [];
+			time_array = [];
+
+
+			//Set init to true [used for telling when the first sound is played]
+			init = true;
+
+			//Disable the ability to toggle set, play the recording, and save the recording when recording
+			document.getElementById('toggle_set').disabled = true;
+			document.getElementById('play').disabled = true;
+			document.getElementById('save_recording').disabled = true;
+			document.getElementById('rec').innerHTML="STOP";
+			
+			//Set the recording variable to true
+			recording = true;
+		}
+
+		//If we stopped recording
+		else {
+
+			//Set recording boolean to false
+			recording= false;
+			
+			//Renable clicks for buttons toggle_set, play, and save_recording
+			document.getElementById('toggle_set').disabled = false;
+			document.getElementById('play').disabled = false;
+			document.getElementById('save_recording').disabled = false;
+			
+			//Change style of recording button back
+			document.getElementById('rec').innerHTML = "Record";
+			document.getElementById('rec').style.background = '#FFFFFF';
+		}
+	}
+	
+	//Function plays the corresponding sound based on the value in the sound_array for the index passed in
+	//Function then is delayed by the corresponding value in the time array then it is called recursively so that it loops through all the sounds in the sound array
+	function playSound(index) {
+
+		//If the sound is the first and not last 
+		if(index==0 && index!=sound_array.length) {
+
+			//Store all audios 
+			var audio = document.getElementById('audio1');
+			var audio2 = document.getElementById('audio2');
+			var audio3 = document.getElementById('audio3');
+			var audio4 = document.getElementById('audio4');
+			var audio5 = document.getElementById('audio5');
+			var audio6 = document.getElementById('audio6');
+			var audio7 = document.getElementById('audio7');
+			
+			/*
+			* Play sound corresponding to value in the sound_array 
+			*/
+
+
+			if(sound_array[index] == 0) {
+
+				if (audio.paused) {
+					audio.play();
+				}
+				else {
+
+					audio.currentTime = 0;
+				}
+
+			}
+
+			else if(sound_array[index] == 1) {
+
+				if (audio2.paused) {
+					audio2.play();
+				}
+				else {
+
+					audio2.currentTime = 0;
+				}
+
+			}
+
+			else if(sound_array[index] == 2){
+
+				if (audio3.paused) {
+					audio3.play();
+				}
+				else {
+
+					audio3.currentTime = 0;
+				}
+
+			}
+			else if(sound_array[index] == 3){
+
+				if (audio4.paused) {
+					audio4.play();
+				}
+				else {
+					audio4.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 4){
+
+				if (audio5.paused) {
+					audio5.play();
+				}
+				else {
+					audio5.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 5){
+
+				if (audio6.paused) {
+					audio6.play();
+				}
+				else {
+					audio6.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 6){
+
+				if (audio7.paused) {
+					audio7.play();
+				}
+				else {
+					audio7.currentTime = 0;
+				}
+			}
+
+			//Recusrively call the function after a delay specified by the value in the time_array
+			setTimeout(function(){playSound(index+1)}, time_array[index]);
+			return;
+
+		}
+
+
+		//If we are in the middle 
+		else if(index!=0 && index!=sound_array.length) {
+
+			//Store all the audio files
+			var audio = document.getElementById('audio1');
+			var audio2 = document.getElementById('audio2');
+			var audio3 = document.getElementById('audio3');
+			var audio4 = document.getElementById('audio4');
+			var audio5 = document.getElementById('audio5');
+			var audio6 = document.getElementById('audio6');
+			var audio7 = document.getElementById('audio7');
+
+			/*
+			* Play the sound corresponding to the value in the sound array
+			*/
+			
+			if(sound_array[index] == 0) {
+
+				if (audio.paused) {
+					audio.play();
+				}
+				else {
+
+					audio.currentTime = 0;
+				}
+
+			}
+
+			else if(sound_array[index] == 1) {
+
+				if (audio2.paused) {
+					audio2.play();
+				}
+				else {
+
+					audio2.currentTime = 0;
+				}
+
+			}
+
+			else if(sound_array[index] == 2){
+
+				if (audio3.paused) {
+					audio3.play();
+				}
+				else {
+
+					audio3.currentTime = 0;
+				}
+
+			}
+			else if(sound_array[index] == 3){
+
+				if (audio4.paused) {
+					audio4.play();
+				}
+				else {
+					audio4.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 4){
+
+				if (audio5.paused) {
+					audio5.play();
+				}
+				else {
+					audio5.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 5){
+
+				if (audio6.paused) {
+					audio6.play();
+				}
+				else {
+					audio6.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 6){
+
+				if (audio7.paused) {
+					audio7.play();
+				}
+				else {
+					audio7.currentTime = 0;
+				}
+			}
+
+			//Recursively call the function with a delay specified by the time in the time_array
+			setTimeout(function(){playSound(index+1)}, time_array[index]);
+			return;
+
+		}
+
+		//If we have reached the last sound
+		else {
+
+			//Store all the audios
+			var audio = document.getElementById('audio1');
+			var audio2 = document.getElementById('audio2');
+			var audio3 = document.getElementById('audio3');
+			var audio4 = document.getElementById('audio4');
+			var audio5 = document.getElementById('audio5');
+			var audio6 = document.getElementById('audio6');
+			var audio7 = document.getElementById('audio7');
+
+			/*
+			* Play the sound corresponding to the value in the sound array
+			*/
+			
+			if(sound_array[index] == 0) {
+
+				if (audio.paused) {
+					audio.play();
+				}
+				else {
+
+					audio.currentTime = 0;
+				}
+
+			}
+
+			else if(sound_array[index] == 1) {
+
+				if (audio2.paused) {
+					audio2.play();
+				}
+				else {
+
+					audio2.currentTime = 0;
+				}
+
+			}
+
+			else if(sound_array[index] == 2){
+
+				if (audio3.paused) {
+					audio3.play();
+				}
+				else {
+
+					audio3.currentTime = 0;
+				}
+
+			}
+			else if(sound_array[index] == 3){
+
+				if (audio4.paused) {
+					audio4.play();
+				}
+				else {
+					audio4.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 4){
+
+				if (audio5.paused) {
+					audio5.play();
+				}
+				else {
+					audio5.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 5){
+
+				if (audio6.paused) {
+					audio6.play();
+				}
+				else {
+					audio6.currentTime = 0;
+				}
+			}
+			else if(sound_array[index] == 6){
+
+				if (audio7.paused) {
+					audio7.play();
+				}
+				else {
+					audio7.currentTime = 0;
+
+				}
+			}
+
+			//Return, no more recursive calls
+			return;
+
+		}
+	
+	}
+	
+	//Function that converts that sound array to a string so that it ecan be sored in php
+	//Also, function converts the time array to a string so that it can be stored in php. We have the character 'A' as a delimiter to know where a time between sounds substring is
+	//I convert both arrays to strings for convience in storing them in SQL 
+	function concat() {
+
+		//Initialize empty strings
+		var my_sound = "";
+		var my_time = "";
+
+		//Convert sound array to a string
+		for(var i=0; i < sound_array.length; i++) {
+
+			my_sound = my_sound + sound_array[i];
+
+		}
+
+		//Convert time array to string with times seperated by "a" character
+		for(var j=0; j < time_array.length; j++) {
+
+			my_time = my_time + time_array[j] + "a";
+
+		}
+
+		//Store sound string, time string, and set string in hidden forms to be transferred to php
+		document.getElementById("hidden").value = my_sound;
+		document.getElementById("hidden1").value = my_time;
+		document.getElementById("hidden2").value = set;
+
+		//Empty arrays
+		my_sound = [];
+		time_array =[];
+
+		
+
+	}
+	//Input: None
+	//Output: Switches between which drumset is displayed, using the title of the two divs to swap out.
+	//Detail: The function will look at the state of the toggle button. If it is off, it will swap out the images of the first
+	//				set for images of the second set. In addition, it will call the switchSets() function at the end, which will
+	//				swap out the soundset to correspond with the current drum pieces.
+	function toggleDrums() {
+	  	if(document.getElementById("toggle-button").title == "off")
+			{
+				$('#crash').attr('src',"HalfInCrash.png");
+				$('#toms').attr('src',"TomLHS.png");
+				$('#bass').attr('src',"kick.png");
+				$('#ride').attr('src',"halfinRide.png");
+				$('#toms2').attr('src',"TomRHS.png");
+				$('#snare').attr('src',"esnare.png");
+				$('#hihat').attr('src',"hihat.png");
+				document.getElementById("toggle-button").title = "on";
+			}
+			else if(document.getElementById("toggle-button").title == "on")
+			{
+				$('#crash').attr('src',"crash.png");
+				$('#toms').attr('src',"toms.png");
+				$('#bass').attr('src',"bass.png");
+				$('#ride').attr('src',"ride.png");
+				$('#toms2').attr('src',"toms.png");
+				$('#snare').attr('src',"snare.png");
+				$('#hihat').attr('src',"hihat.png");
+				document.getElementById("toggle-button").title = "off";
+			}
+			switchSets();
+	}
+
+//This is simply an alert function that will detail to users how to use the web page when the "How To" button is clicked.
+	function howTo() {
+		var howToUse = "Welcome to the digital drumset project!\nHere's a brief explanation of how to use it:\n1) Click on any of the set pieces to hear their respective sounds. Additionally, the numberpad (if you have one) can be used to play the instuments.\n2) Click on 'Toggle Drumsets' to change the soundset\n3) Click on 'Record' to record your own sound\n4) Click on 'Play Recording' to play back your sounds\n5) Enter your name in the text box, and then click on 'Save Recording' to save your recording\nEnjoy the project!";
+		alert(howToUse);
+	}
+</script>
+
+<!--This is the header for the webpage-->
+<div  style="position:absolute; LEFT:350px; TOP:-10px; WIDTH:1000px; HEIGHT:100px;color:#FFFFFF;font:Impact">
+	<p style="font-family:Lucida Console;font-size:30px"> EECS 368 Final Project: Digital Drumset </p>
+</div>
+
+</head>
+
+<!--This is the body section, which contains all of the set pieces and buttons. The background of the body is set to an image
+		of a concert stage. All elements have been positioned absolutely as to keep then "free floating" and not shrink or grow with
+		window resizing-->
+
+<body background="Blue-Light-Concert-Stage.jpg">
+
+	<!--Here is where all of the buttons used to interact with the web page will be contained. Each button is linked to a JS function
+			that will carry out the action given by the button title-->
+	<div id="how-to" title="off">
+		<button id="howto-button" style="position:absolute; TOP:15 px; WIDTH:10%; HEIGHT:5%" onclick="howTo()">How To Use</button>
+	</div>
+	<div id="toggle-button" title="off">
+	<button id="toggle_set"style="position:absolute; TOP:50px; WIDTH:10%; HEIGHT:5%" onclick="toggleDrums()">Toggle Drumsets</button>
+	</div>
+	<div id="record" title="off">
+	<button id="rec"style="position:absolute; TOP:92px; WIDTH:10%; HEIGHT:5%" onclick="record()">Record</button>
+	</div>
+	<div id="playback" title="off">
+	<button id="play" style="position:absolute; TOP:134px; WIDTH:10%; HEIGHT:5%">Play Recording</button>
+	</div>
+	
+	<!--Here are all of the drumset pieces. Each set is contained in a div, and will be switched out depending on the state of the "toggle" button. -->
+	  <div id="set1" style="position:absolute; HEIGHT:480px; TOP:-8px; display:inline">
+	    <img id = "stands" style="position:absolute; margin-top:483px; margin-LEFT: 229px; WIDTH:913px; HEIGHT:600px" src="stands.png" alt = "stands">
+	    <img id = "crash" style="position:absolute; margin-top:520px; margin-LEFT:342px; WIDTH:170px; HEIGHT:150px" src="crash.png" width="25%" height = "25%" alt = "crash1">
+	    <img id = "toms" style="position:absolute; margin-TOP:580px; margin-LEFT:617px; WIDTH:170px; HEIGHT:170px" src="toms.png" alt = "tom2">
+	    <img id = "bass" style="position:absolute; margin-TOP:625px; margin-LEFT:510px; WIDTH:390px; HEIGHT:380px" src="bass.png" alt = "bass">
+	    <img id = "ride" style="position:absolute; margin-TOP:450px; margin-LEFT:891px; WIDTH:200px; HEIGHT:170px" src="ride.png" alt="ride">
+	    <img id = "toms2" style="position:absolute; margin-TOP:690px; margin-LEFT:837px; WIDTH:170px; HEIGHT:170px" src="toms.png" alt = "tom1">
+	    <img id = "snare" style="position:absolute; margin-TOP: 710px; margin-LEFT:419px; WIDTH:150px; HEIGHT:110px" src="snare.png" alt = "snare">
+	    <img id = "hihat" style="position:absolute; margin-TOP:690px; margin-LEFT:285px; WIDTH:130px; HEIGHT:90px" src="hihat.png" alt = "hihat">
+	  </div>
+		<div id="set2" style="position:absolute; HEIGHT:480px; TOP:-8px; display:none">
+			<img id= "crash" style="position:absolute; TOP:520px; LEFT:342px; WIDTH:170px; HEIGHT:150px" src="HalfInCrash.png" width="25%" height = "25%" alt = "crash1">
+			<img id= "toms" style="position:absolute; TOP:580px; LEFT:617px; WIDTH:170px; HEIGHT:170px" src="TomLHS.png" alt = "tom2">
+			<img id= "bass" style="position:absolute; TOP:625px; LEFT:510px; WIDTH:390px; HEIGHT:380px" src="kick.png" alt = "bass">
+			<img id="ride" style="position:absolute; TOP:450px; LEFT:891px; WIDTH:200px; HEIGHT:170px" src="halfinRide.png" alt="ride">
+			<img id="toms2" style="position:absolute; TOP:690px; LEFT:837px; WIDTH:170px; HEIGHT:170px" src="TomRHS.png" alt = "tom1">
+			<img id="snare" style="position:absolute; TOP: 710px; LEFT:419px; WIDTH:150px; HEIGHT:110px" src="esnare.png" alt = "snare">
+			<img id"hihat" style="position:absolute; TOP:690px; LEFT:285px; WIDTH:130px; HEIGHT:90px" src="hihat.png" alt = "hihat">
+		</div>
+		
+	<!--Audio Sources are below-->
+	<form action="" method="post">
+		<audio id="audio4" src="FinalProjectSounds/DrumSet1/hiTomReal.ogg"></audio>
+
+		<div id="embed"></id>
+	</form>
+	<form action="" method="post">
+                <audio id="audio6" src="FinalProjectSounds/DrumSet1/kick_AcousticReal.ogg"></audio>
+
+		<div id="embed"></div>
+	</form>
+	<form action="" method="post">
+                <audio id="audio1" src="FinalProjectSounds/DrumSet1/crashReal.ogg"></audio>
+
+		<div id="embed"></div>
+	</form>
+	<form action="" method="post">
+                <audio id="audio2" src="FinalProjectSounds/DrumSet1/snareReal.ogg"></audio>
+
+		<div id="embed"></div>
+	</form>
+	<form action="" method="post">
+                <audio id="audio3" src="FinalProjectSounds/DrumSet1/hihatReal.ogg"></audio>
+
+		<div id="embed"></div>
+	</form>
+	<form action="" method="post">
+                <audio id="audio7" src="FinalProjectSounds/DrumSet1/rideReal.ogg"></audio>
+
+		<div id="embed"></div>
+	</form>
+	<form action="" method="post">
+                <audio id="audio5" src="FinalProjectSounds/DrumSet1/floorTomReal2.ogg"></audio>
+
+		<div id="embed"></div>
+	</form>
+
+	
+	<form action="Project_3_Record.php" method="post" onsubmit="concat()" style="position:absolute; TOP:176px; WIDTH:10%; HEIGHT:5%">
+			<!-- Submit button for saving the recording-->
+			<button type="submit" id = "save_recording" style = "WIDTH:100%; HEIGHT:100%">Save Recording</button><br><br>
+			<!-- Input box for author of the recording-->
+			<input type="text" id = "author" name="author" value="Author Here"></input><br>
+			<!-- Hidden input boxes to transmit data to php. These will be populated with the sound_array, time_array, and sound type which will then get transmitted to php-->
+			<input id="hidden" name="hidden" style="visibility:hidden;"></input>
+			<input id="hidden1" name="hidden1" style="visibility:hidden;"></input>
+			<input id="hidden2" name="hidden2" style="visibility:hidden;"></input>
+			<div id="embed"></div>
+	</form>
+</body>
+</html>

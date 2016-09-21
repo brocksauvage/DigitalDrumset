@@ -1,0 +1,105 @@
+
+<html>
+<!-- Author: Alec Knutsen -->
+<!-- Displays Author, Recording ID, and option to delete in a table for all recordings using HTML and embedded PHP -->
+
+<head>
+<title>Recording Page</title>
+
+
+
+
+</head>
+
+<body style="background-color:lightgrey;">
+
+
+	<center>
+		
+			<p><a href ="FinalProject_DABS.html">Go Back to Main Page</a></p>
+		
+		
+			<!--Form for submitting deletions -->
+			<form id = "my_form" name = "my_form" action="DeleteRecord.php" method="post">
+
+			<!-- Table the displays the posts, authors, and a delete option --> 
+			<table border="1">
+			<?php 
+			
+			/*
+			* Author: Alec Knutsen
+			* Date: May 8, 2016
+			* Stores the Author Record_ID and Delete option in a table
+			*/
+			
+			//Connect to SQL
+			$mysql = mysql_connect("mysql.eecs.ku.edu", "aknutsen", "Password123!");
+
+
+			//If could not connect
+			$selected = mysql_select_db("aknutsen",$mysql) 
+			  or die("Could not connect!");
+
+			 
+
+			//Select ID, author, and record from music table
+			$query = mysql_query("SELECT ID, Author, Record FROM Music ORDER BY ID DESC");
+			
+			
+			
+
+			//Heading for table 
+			echo "<tr>";
+			echo "<th>" . "Posted By:  " . "</th>";
+			echo "<th>" . "Recording ID:  " . "</th>";
+			echo "<th>" . "Delete: " . "</th>";
+			echo "</tr>";
+			
+			
+		
+			//Loops through all the records in the music table
+			while ($row =  mysql_fetch_array($query)) {
+				
+					//Stores record id 
+					$my_post_id = $row{"ID"};
+					
+				
+					//Display the author of the and record_id of the record
+					echo "<tr>";
+					echo("<td >". $row{"Author"}."</td>");
+					echo("<td >". $my_post_id."</td>");
+					echo "<td>";
+					//Display a checkbox for delete
+					echo "<input type=\"checkbox\" id = \"$my_post_id\" name = \"$my_post_id\">";
+					echo "</td>";
+					echo "</tr>";
+
+			}
+						
+			?>
+			
+			
+			
+			</table>
+			<br>
+			<!-- On form submit go delete the recording-->
+			<button type="submit" style="TOP:15 px; WIDTH:10%; HEIGHT:5%">Delete Recording</button>
+			</form>
+	
+		
+
+	
+	<!-- Form to go to play recording-->
+	<form  action="Play_recording.php" method="post">
+		<p>ID:</p>
+		<input type="text" id = "play" name="play" style="TOP:15 px; WIDTH:10%; HEIGHT:5%"></input><br>
+		<br>
+		<button type="submit"  style="TOP:15 px; WIDTH:10%; HEIGHT:5%">Play Recording</button>
+		<div id="embed"></div>
+	</form> 
+	
+</center>
+	
+
+</body>
+</html>
